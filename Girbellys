@@ -1,0 +1,280 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const FlowerMazeGame = () => {
+  const [gameState, setGameState] = useState<'playing' | 'won'>('playing');
+  const [playerPosition, setPlayerPosition] = useState({ x: 1, y: 1 });
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Laberinto: 0 = camino, 1 = pared, 2 = inicio, 3 = meta (mujer)
+  const maze = [
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 2, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+    [1, 0, 0, 0, 0, 1, 3, 1, 0, 1],
+    [1, 0, 1, 1, 1, 1, 0, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 1, 1, 1, 1, 1, 0, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 1, 1, 1, 1, 1, 1, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  ];
+
+  // Detectar dispositivo
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768 || 'ontouchstart' in window);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Mover jugador
+  const movePlayer = useCallback((dx: number, dy: number) => {
+    setPlayerPosition(current => {
+      const newX = current.x + dx;
+      const newY = current.y + dy;
+      
+      // Verificar colisiones
+      if (maze[newY]?.[newX] !== 1) {
+        // Verificar victoria
+        if (maze[newY]?.[newX] === 3) {
+          setGameState('won');
+        }
+        return { x: newX, y: newY };
+      }
+      return current;
+    });
+  }, []);
+
+  // Controles de teclado
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (gameState === 'playing') {
+        switch(e.key) {
+          case 'ArrowUp': movePlayer(0, -1); break;
+          case 'ArrowDown': movePlayer(0, 1); break;
+          case 'ArrowLeft': movePlayer(-1, 0); break;
+          case 'ArrowRight': movePlayer(1, 0); break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [gameState, movePlayer]);
+
+  // Controles táctiles
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart({
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY
+    });
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart || gameState !== 'playing') return;
+
+    const touchEnd = {
+      x: e.changedTouches[0].clientX,
+      y: e.changedTouches[0].clientY
+    };
+
+    const dx = touchEnd.x - touchStart.x;
+    const dy = touchEnd.y - touchStart.y;
+
+    // Sensibilidad del swipe
+    const minSwipeDistance = 30;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (Math.abs(dx) > minSwipeDistance) {
+        movePlayer(dx > 0 ? 1 : -1, 0);
+      }
+    } else {
+      if (Math.abs(dy) > minSwipeDistance) {
+        movePlayer(0, dy > 0 ? 1 : -1);
+      }
+    }
+
+    setTouchStart(null);
+  };
+
+  // Reiniciar juego
+  const resetGame = () => {
+    setGameState('playing');
+    setPlayerPosition({ x: 1, y: 1 });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-orange-200 to-yellow-300 flex flex-col items-center justify-center p-4">
+      {/* Cabecera decorativa */}
+      <motion.div
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="text-center mb-8"
+      >
+        <h1 className="text-4xl md:text-6xl font-bold text-yellow-600 mb-2">
+          💛 Día de las Flores Amarillas 💛
+        </h1>
+        <p className="text-lg md:text-xl text-orange-700">
+          21 de Septiembre - Para Girbellys
+        </p>
+      </motion.div>
+
+      {/* Juego del Laberinto */}
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="bg-yellow-100 p-6 rounded-2xl shadow-2xl border-4 border-yellow-400 mb-8"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className="grid grid-cols-10 gap-1">
+          {maze.map((row, y) =>
+            row.map((cell, x) => (
+              <div
+                key={`${x}-${y}`}
+                className={`w-8 h-8 md:w-12 md:h-12 rounded-md flex items-center justify-center ${
+                  cell === 1
+                    ? 'bg-yellow-800 border-2 border-yellow-900'
+                    : 'bg-yellow-50 border-2 border-yellow-200'
+                }`}
+              >
+                {playerPosition.x === x && playerPosition.y === y && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="w-6 h-6 md:w-10 md:h-10 bg-yellow-400 rounded-full flex items-center justify-center"
+                  >
+                    <span className="text-yellow-800 text-lg">🌼</span>
+                  </motion.div>
+                )}
+                {cell === 3 && !(playerPosition.x === x && playerPosition.y === y) && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="w-6 h-6 md:w-10 md:h-10 bg-pink-200 rounded-full flex items-center justify-center"
+                  >
+                    <span className="text-pink-600 text-lg">👸</span>
+                  </motion.div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </motion.div>
+
+      {/* Controles para móvil */}
+      {isMobile && gameState === 'playing' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="bg-yellow-200 p-4 rounded-xl shadow-lg mb-8"
+        >
+          <p className="text-yellow-800 text-center mb-4">Desliza para mover la flor</p>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-start-2">
+              <div className="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center text-2xl">
+                ↑
+              </div>
+            </div>
+            <div className="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center text-2xl">
+              ←
+            </div>
+            <div className="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center text-2xl">
+              →
+            </div>
+            <div className="col-start-2">
+              <div className="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center text-2xl">
+                ↓
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Instrucciones para desktop */}
+      {!isMobile && gameState === 'playing' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="bg-yellow-200 p-4 rounded-xl shadow-lg mb-8"
+        >
+          <p className="text-yellow-800 text-center">
+            Usa las flechas del teclado para mover la flor amarilla hasta la princesa
+          </p>
+        </motion.div>
+      )}
+
+      {/* Animación de victoria */}
+      <AnimatePresence>
+        {gameState === 'won' && (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 100 }}
+              className="bg-yellow-100 p-8 rounded-3xl text-center max-w-md mx-4"
+            >
+              <motion.div
+                animate={{ 
+                  scale: [1, 1.2, 1],
+                  rotate: [0, 5, -5, 0]
+                }}
+                transition={{ 
+                  duration: 2,
+                  repeat: Infinity,
+                  repeatType: "reverse"
+                }}
+                className="text-6xl mb-4"
+              >
+                🌻
+              </motion.div>
+              <h2 className="text-3xl font-bold text-yellow-700 mb-4">
+                ¡Felicidades!
+              </h2>
+              <p className="text-xl text-orange-600 mb-6">
+                Feliz día mi amor, Girbellys
+              </p>
+              <p className="text-lg text-yellow-800 mb-6">
+                Te quiero mucho 💛
+              </p>
+              <p className="text-lg text-orange-700 italic mb-4">
+                Eres inefable, eres una en un millón
+              </p>
+              <p className="text-lg text-orange-800 font-semibold">
+                Eres la única flor amarilla en un jardín de flores oscuras
+              </p>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={resetGame}
+                className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-full text-lg"
+              >
+                Jugar de nuevo
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Decoración floral */}
+      <div className="absolute top-4 left-4 text-4xl">🌼</div>
+      <div className="absolute top-4 right-4 text-4xl">🌻</div>
+      <div className="absolute bottom-4 left-4 text-4xl">🌸</div>
+      <div className="absolute bottom-4 right-4 text-4xl">💮</div>
+    </div>
+  );
+};
+
+export default FlowerMazeGame;
